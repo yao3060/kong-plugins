@@ -25,7 +25,7 @@ Supported JWT fields: `sub`, `roles`, `permissions`, `scopes`.
 
 1. 创建 ConfigMap：
 ```bash
-kubectl apply -f k8s/configmap.yaml
+
 ```
 
 2. 创建 KongPlugin 资源（在需要使用插件的 namespace 中）：
@@ -37,7 +37,13 @@ sed 's/namespace: default/namespace: your-namespace/' k8s/install-kong-plugin.ya
 kubectl apply -f k8s/install-kong-plugin.yaml
 ```
 
-3. 在 Ingress 中启用插件：
+3. 验证 ConfigMap 已创建：
+
+```bash
+kubectl get configmap kong-plugin-lua-jwt-headers-extract -n kong
+```
+
+4. 在 Ingress 中启用插件：
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -48,15 +54,3 @@ metadata:
 spec:
   # ...
 ```
-
-详细安装说明、配置选项和故障排查请查看 [INSTALL.md](./INSTALL.md)。
-
-### 其他环境
-
-对于非 Kubernetes 环境，将插件文件复制到 Kong 的插件目录：
-
-```bash
-cp -r lua-jwt-headers-extract /usr/local/share/lua/5.1/kong/plugins/
-```
-
-然后重启 Kong 服务。
