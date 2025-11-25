@@ -28,12 +28,7 @@ Supported JWT fields: `sub`, `roles`, `permissions`, `scopes`.
 kubectl apply -f k8s/configmap.yaml
 ```
 
-2. 更新 Kong Gateway 部署：
-```bash
-helm upgrade kong kong/kong -f k8s/helm-values-patch.yaml -n kong
-```
-
-3. 创建 KongPlugin 资源（在需要使用插件的 namespace 中）：
+2. 创建 KongPlugin 资源（在需要使用插件的 namespace 中）：
 ```bash
 # 修改 namespace（如果需要）
 sed 's/namespace: default/namespace: your-namespace/' k8s/install-kong-plugin.yaml | kubectl apply -f -
@@ -42,7 +37,7 @@ sed 's/namespace: default/namespace: your-namespace/' k8s/install-kong-plugin.ya
 kubectl apply -f k8s/install-kong-plugin.yaml
 ```
 
-4. 在 Ingress 中启用插件：
+3. 在 Ingress 中启用插件：
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress

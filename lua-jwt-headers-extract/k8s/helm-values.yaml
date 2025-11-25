@@ -1,0 +1,5 @@
+ gateway:
+   plugins:
+     configMaps:
+       - name: kong-plugin-lua-jwt-headers-extract
+         pluginName: lua-jwt-headers-extract

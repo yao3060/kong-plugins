@@ -43,126 +43,6 @@ kubectl apply -f k8s/configmap.yaml
 kubectl get configmap kong-plugin-lua-jwt-headers-extract -n kong
 ```
 
-### 步骤 2: 更新 Kong Gateway 部署
-
-使用 Helm 更新部署（推荐方式）：
-
-```bash
-helm upgrade kong kong/kong -f k8s/helm-values-patch.yaml -n kong
-```
-
-### 步骤 3: 等待 Pod 重启
-
-部署更新后，Kong Gateway Pod 会自动重启以应用新的挂载配置：
-
-```bash
-# 查看 Pod 状态
-kubectl get pods -n kong -w
-
-# 等待所有 Pod 就绪
-kubectl rollout status deployment/kong-gateway -n kong
-```
-
-### 步骤 4: 验证安装
-
-1. 检查插件文件是否已挂载：
-
-```bash
-# 进入 Kong Pod
-kubectl exec -it -n kong <kong-pod-name> -- /bin/sh
-
-# 检查插件目录
-ls -la /usr/local/share/lua/5.1/kong/plugins/lua-jwt-headers-extract/
-
-# 应该能看到 handler.lua 和 schema.lua
-cat /usr/local/share/lua/5.1/kong/plugins/lua-jwt-headers-extract/handler.lua
-cat /usr/local/share/lua/5.1/kong/plugins/lua-jwt-headers-extract/schema.lua
-```
-
-2. 验证插件在 Kong 中可用：
-
-```bash
-# 在 Pod 内执行配置解析测试
-kong config -c /etc/kong/kong.conf parse
-
-# 或者通过 Admin API（如果已启用）
-kubectl port-forward -n kong <kong-pod-name> 8001:8001
-curl http://localhost:8001/plugins/enabled | grep lua-jwt-headers-extract
-```
-
-### 步骤 5: 配置和使用插件
-
-插件安装后，需要创建 `KongPlugin` 资源来配置插件，然后在 Ingress 或 Service 中引用它。
-
-#### 创建 KongPlugin 资源
-
-首先创建 `KongPlugin` 资源来配置插件：
-
-```yaml
-apiVersion: configuration.konghq.com/v1
-kind: KongPlugin
-metadata:
-  name: lua-jwt-headers-extract
-  namespace: default  # 与您的 Ingress/Service 在同一 namespace
-plugin: lua-jwt-headers-extract
-config:
-  header_prefix: "X-JWT-"
-  sub_header_name: "Sub"
-  roles_header_name: "Roles"
-  permissions_header_name: "Permissions"
-  scopes_header_name: "Scopes"
-```
-
-应用配置：
-
-```bash
-kubectl apply -f - <<EOF
-apiVersion: configuration.konghq.com/v1
-kind: KongPlugin
-metadata:
-  name: lua-jwt-headers-extract
-  namespace: default
-plugin: lua-jwt-headers-extract
-config:
-  header_prefix: "X-JWT-"
-  sub_header_name: "Sub"
-  roles_header_name: "Roles"
-  permissions_header_name: "Permissions"
-  scopes_header_name: "Scopes"
-EOF
-```
-
-#### 在 Ingress 中启用插件
-
-在 Ingress 的注解中引用上面创建的 `KongPlugin` 资源名称：
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: my-ingress
-  namespace: default
-  annotations:
-    konghq.com/plugins: lua-jwt-headers-extract  # 引用 KongPlugin 资源的名称
-spec:
-  rules:
-  - host: example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: my-service
-            port:
-              number: 80
-```
-
-**重要说明：**
-- `konghq.com/plugins` 注解中使用 `KongPlugin` 资源的名称（`lua-jwt-headers-extract`）
-- `KongPlugin` 资源必须与 Ingress/Service 在同一个 namespace 中
-- 如果使用默认配置，可以省略 `config` 部分
-
 ## 配置选项
 
 插件支持以下配置参数：
@@ -192,7 +72,7 @@ kubectl get configmap kong-plugin-lua-jwt-headers-extract -n kong -o yaml
 1. 检查部署配置中的 volumeMounts：
 
 ```bash
-kubectl get deployment kong-gateway -n kong -o yaml | grep -A 10 volumeMounts
+kubectl get deployment kong-kong -n kong -o yaml | grep -A 10 volumeMounts
 ```
 
 2. 检查 Pod 中的挂载：
@@ -249,14 +129,14 @@ kubectl apply -f k8s/configmap.yaml
 2. 滚动重启 Kong Gateway Pod 以加载新配置：
 
 ```bash
-kubectl rollout restart deployment/kong-gateway -n kong
-kubectl rollout status deployment/kong-gateway -n kong
+kubectl rollout restart deployment/kong-kong -n kong
+kubectl rollout status deployment/kong-kong -n kong
 ```
 
 3. 验证新版本：
 
 ```bash
-kubectl exec -it -n kong <kong-gateway-pod-name> -- cat /usr/local/share/lua/5.1/kong/plugins/lua-jwt-headers-extract/handler.lua | grep VERSION
+kubectl exec -it -n kong <kong-kong-pod-name> -- cat /usr/local/share/lua/5.1/kong/plugins/lua-jwt-headers-extract/handler.lua | grep VERSION
 ```
 
 ## 相关资源
