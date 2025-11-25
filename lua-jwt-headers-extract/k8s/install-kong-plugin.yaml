@@ -1,0 +1,15 @@
+# 
+# Deploy KongPlugin
+# 
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: lua-jwt-headers-extract
+  namespace: default  # 与您的 Ingress/Service 在同一 namespace
+plugin: lua-jwt-headers-extract
+config:
+  header_prefix: "X-JWT-"
+  sub_header_name: "Sub"
+  roles_header_name: "Roles"
+  permissions_header_name: "Permissions"
+  scopes_header_name: "Scopes"

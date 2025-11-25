@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-plugin-lua-jwt-headers-extract
+  namespace: kong
+  labels:
+    app: kong
+data:
+  handler.lua: |
+    local cjson = require "cjson.safe"
+    local kong = kong
+    local ngx = ngx
+    
+    local _M = {
+        PRIORITY = 1000,
+        VERSION = "0.1.0"
+    }
+    
+    local function base64_url_decode(str)
+        if not str then
+            return nil
+        end
+        -- URL-safe -> standard base64
+        str = str:gsub("-", "+"):gsub("_", "/")
+        -- pad
+        local rem = #str % 4
+        if rem == 2 then
+            str = str .. "=="
+        elseif rem == 3 then
+            str = str .. "="
+        elseif rem == 1 then
+            -- invalid base64url string length
+            return nil
+        end
+        return ngx.decode_base64(str)
+    end
+    
+    local function set_header_from_value(header_name, value)
+        if not header_name or value == nil then
+            return
+        end
+        if type(value) == "table" then
+            local ok, encoded = pcall(cjson.encode, value)
+            if ok and encoded then
+                kong.service.request.set_header(header_name, encoded)
+            else
+                -- fallback tostring
+                kong.service.request.set_header(header_name, tostring(value))
+            end
+        else
+            kong.service.request.set_header(header_name, tostring(value))
+        end
+    end
+    
+    function _M.access(self, conf)
+        -- Get Authorization header
+        local auth = kong.request.get_header("authorization")
+        if not auth then
+            return
+        end
+    
+        -- Match Bearer token (case-insensitive)
+        local token = auth:match("^[Bb]earer%s+(.+)$")
+        if not token then
+            return
+        end
+    
+        -- split token (JWT format: header.payload.signature)
+        local parts = {}
+        for part in token:gmatch("[^%.]+") do
+            table.insert(parts, part)
+        end
+        if #parts < 2 then
+            kong.log.warn("lua-jwt-headers-extract: invalid JWT token format (expected at least 2 parts)")
+            return
+        end
+    
+        local payload_enc = parts[2]
+        local payload_json = base64_url_decode(payload_enc)
+        if not payload_json then
+            kong.log.warn("lua-jwt-headers-extract: failed to base64url-decode payload")
+            return
+        end
+    
+        local payload, err = cjson.decode(payload_json)
+        if not payload then
+            kong.log.warn("lua-jwt-headers-extract: failed to decode JSON payload: ", err)
+            return
+        end
+    
+        local prefix = conf.header_prefix or "X-JWT-"
+    
+        -- header key names (configurable)
+        local sub_h = prefix .. (conf.sub_header_name or "Sub")
+        local roles_h = prefix .. (conf.roles_header_name or "Roles")
+        local perms_h = prefix .. (conf.permissions_header_name or "Permissions")
+        local scopes_h = prefix .. (conf.scopes_header_name or "Scopes")
+    
+        -- set headers if present in payload
+        set_header_from_value(sub_h, payload.sub)
+        set_header_from_value(roles_h, payload.roles)
+        set_header_from_value(perms_h, payload.permissions)
+        set_header_from_value(scopes_h, payload.scopes)
+    end
+    
+    return _M
+  schema.lua: |
+    return {
+        name = "lua-jwt-headers-extract",
+        fields = {
+            {
+                config = {
+                    type = "record",
+                    fields = {
+                        {header_prefix = {type = "string", default = "X-JWT-"}},
+                        {sub_header_name = {type = "string", default = "Sub"}},
+                        {roles_header_name = {type = "string", default = "Roles"}},
+                        {permissions_header_name = {type = "string", default = "Permissions"}},
+                        {scopes_header_name = {type = "string", default = "Scopes"}}
+                    }
+                }
+            }
+        }
+    }
